@@ -1,0 +1,30 @@
+[project]
+name = "sshmanager"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "huangzizhu", email = "3389487311@qq.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "asyncssh>=2.23.0",
+    "cryptography>=48.0.0",
+    "pydantic>=2.13.4",
+    "pyqt6>=6.11.0",
+    "rich>=15.0.0",
+    "typer>=0.25.1",
+]
+
+[project.scripts]
+sshmanager = "sshmanager:main"
+
+[build-system]
+requires = ["uv_build>=0.11.6,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.20.0",
+]
