@@ -84,7 +84,7 @@ uv run python scripts/package.py --target linux --clean-output
 ### 4. 在 macOS 打包
 
 ```bash
-uv run python scripts/package.py --target macos --target-arch universal2 --mode gui --clean-output
+uv run python scripts/package.py --target macos --target-arch arm64 --mode gui --clean-output
 ```
 
 产物目录：
@@ -94,7 +94,8 @@ uv run python scripts/package.py --target macos --target-arch universal2 --mode 
 说明：
 
 - `--target-arch` 仅在 macOS 下可用，可选 `x86_64`、`arm64`、`universal2`
-- release 工作流默认使用 `universal2`
+- 当前 release 工作流默认使用 `arm64`
+- 当前依赖包含单架构扩展模块，GitHub Actions 上的 `macos-15` runner 无法稳定产出 `universal2`
 
 ### 5. 可选：打包成单文件
 
@@ -123,7 +124,7 @@ uv run python scripts/package.py --mode all --onefile --clean-output
 
 - `sshmanager-${version}-windows-x64.zip`
 - `sshmanager-${version}-ubuntu-x64.tar.gz`
-- `sshmanager-${version}-macos-universal2.zip`
+- `sshmanager-${version}-macos-arm64.zip`
 
 ### 发布步骤
 

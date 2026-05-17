@@ -134,20 +134,20 @@ jobs:
         run: uv sync --group dev --locked
 
       - name: Build GUI package
-        run: uv run python scripts/package.py --target macos --target-arch universal2 --mode gui --clean-output
+        run: uv run python scripts/package.py --target macos --target-arch arm64 --mode gui --clean-output
 
       - name: Create release archive
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
-          archive="sshmanager-${version}-macos-universal2.zip"
+          archive="sshmanager-${version}-macos-arm64.zip"
           ditto -c -k --keepParent "dist/macos/sshmanager-gui.app" "$archive"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-release
-          path: sshmanager-*-macos-universal2.zip
+          path: sshmanager-*-macos-arm64.zip
           if-no-files-found: error
 
   publish-release:
