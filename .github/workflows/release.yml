@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install uv==0.11.6
+
+      - name: Verify tag matches project version
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          version = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+          expected = tag.removeprefix("v")
+          if version != expected:
+              raise SystemExit(f"pyproject.toml version {version!r} does not match tag {tag!r}")
+          print(f"Validated release version: {version}")
+          PY
+
+      - name: Install dependencies
+        run: uv sync --group dev --locked
+
+      - name: Run tests
+        run: uv run pytest
+
+  build-windows:
+    runs-on: windows-2025
+    needs: test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install uv==0.11.6
+
+      - name: Install dependencies
+        run: uv sync --group dev --locked
+
+      - name: Build GUI package
+        run: uv run python scripts/package.py --target windows --mode gui --clean-output
+
+      - name: Create release archive
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".Substring(1)
+          $archive = "sshmanager-$version-windows-x64.zip"
+          Compress-Archive -Path "dist/windows/sshmanager-gui" -DestinationPath $archive
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: sshmanager-*-windows-x64.zip
+          if-no-files-found: error
+
+  build-ubuntu:
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install uv==0.11.6
+
+      - name: Install dependencies
+        run: uv sync --group dev --locked
+
+      - name: Build GUI package
+        run: uv run python scripts/package.py --target linux --mode gui --clean-output
+
+      - name: Create release archive
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          archive="sshmanager-${version}-ubuntu-x64.tar.gz"
+          tar -C dist/linux -czf "$archive" sshmanager-gui
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-release
+          path: sshmanager-*-ubuntu-x64.tar.gz
+          if-no-files-found: error
+
+  build-macos:
+    runs-on: macos-15
+    needs: test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install uv==0.11.6
+
+      - name: Install dependencies
+        run: uv sync --group dev --locked
+
+      - name: Build GUI package
+        run: uv run python scripts/package.py --target macos --target-arch universal2 --mode gui --clean-output
+
+      - name: Create release archive
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          archive="sshmanager-${version}-macos-universal2.zip"
+          ditto -c -k --keepParent "dist/macos/sshmanager-gui.app" "$archive"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: sshmanager-*-macos-universal2.zip
+          if-no-files-found: error
+
+  publish-release:
+    runs-on: ubuntu-24.04
+    needs:
+      - build-windows
+      - build-ubuntu
+      - build-macos
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if ! gh release view "$tag" --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GH_REPO" --verify-tag --generate-notes
+          fi
+          gh release upload "$tag" artifacts/windows-release/* artifacts/ubuntu-release/* artifacts/macos-release/* --repo "$GH_REPO" --clobber

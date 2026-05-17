@@ -18,16 +18,21 @@ class BuildJob:
     windowed: bool = False
 
 
+MACOS_ARCH_CHOICES = ("x86_64", "arm64", "universal2")
+
+
 def _local_target() -> str:
     system = platform.system().lower()
     if system.startswith("win"):
         return "windows"
     if system == "linux":
         return "linux"
+    if system == "darwin":
+        return "macos"
     raise RuntimeError(f"Unsupported build host: {platform.system()}")
 
 
-def _build_job(job: BuildJob, target: str, onefile: bool) -> None:
+def _build_job(job: BuildJob, target: str, onefile: bool, target_arch: str | None) -> None:
     dist_root = ROOT / "dist" / target
     build_root = ROOT / "build" / target / job.name
     spec_root = ROOT / "build" / target / "spec"
@@ -50,6 +55,8 @@ def _build_job(job: BuildJob, target: str, onefile: bool) -> None:
         args.append("--onefile")
     if job.windowed:
         args.append("--windowed")
+    if target == "macos" and target_arch is not None:
+        args.extend(["--target-arch", target_arch])
     args.append(str(ROOT / job.entry))
     pyinstaller_run(args)
 
@@ -60,7 +67,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--target",
-        choices=("linux", "windows"),
+        choices=("linux", "windows", "macos"),
         help="Build target. Must match the current host OS.",
     )
     parser.add_argument(
@@ -79,6 +86,11 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Delete dist/<target> and build/<target> before packaging.",
     )
+    parser.add_argument(
+        "--target-arch",
+        choices=MACOS_ARCH_CHOICES,
+        help="Target architecture for macOS builds.",
+    )
     return parser.parse_args()
 
 
@@ -90,6 +102,8 @@ def main() -> None:
         raise SystemExit(
             f"PyInstaller does not cross-compile: run this on {target}, current host is {local_target}."
         )
+    if args.target_arch is not None and target != "macos":
+        raise SystemExit("--target-arch is only supported when --target macos is selected.")
 
     if args.clean_output:
         shutil.rmtree(ROOT / "dist" / target, ignore_errors=True)
@@ -102,8 +116,9 @@ def main() -> None:
         jobs.append(BuildJob(name="sshmanager-cli", entry="main_cli.py"))
 
     for job in jobs:
-        print(f"==> Building {job.name} ({target}, onefile={args.onefile})")
-        _build_job(job, target=target, onefile=args.onefile)
+        arch_suffix = f", target_arch={args.target_arch}" if target == "macos" and args.target_arch else ""
+        print(f"==> Building {job.name} ({target}, onefile={args.onefile}{arch_suffix})")
+        _build_job(job, target=target, onefile=args.onefile, target_arch=args.target_arch)
 
     print(f"Done. Output directory: {ROOT / 'dist' / target}")
 

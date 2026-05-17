@@ -47,7 +47,7 @@ uv run python main.py
 uv run python main.py --help
 ```
 
-## 打包（Linux / Windows）
+## 打包（Windows / Linux / macOS）
 
 项目已提供 `PyInstaller` 打包脚本：`scripts/package.py`。
 
@@ -57,7 +57,20 @@ uv run python main.py --help
 uv sync --group dev
 ```
 
-### 2. 在 Linux 打包
+### 2. 在 Windows 打包
+
+请在 Windows 机器上执行（PyInstaller 不支持跨系统直接产出可用 exe）：
+
+```bash
+uv run python scripts/package.py --target windows --mode gui --clean-output
+```
+
+产物目录：
+
+- `dist/windows/sshmanager-gui/`（GUI）
+- `dist/windows/sshmanager-cli/`（CLI，只有 `--mode all` 或 `--mode cli` 时生成）
+
+### 3. 在 Linux 打包
 
 ```bash
 uv run python scripts/package.py --target linux --clean-output
@@ -68,20 +81,22 @@ uv run python scripts/package.py --target linux --clean-output
 - `dist/linux/sshmanager-gui/`（GUI）
 - `dist/linux/sshmanager-cli/`（CLI）
 
-### 3. 在 Windows 打包
-
-请在 Windows 机器上执行（PyInstaller 不支持跨系统直接产出可用 exe）：
+### 4. 在 macOS 打包
 
 ```bash
-uv run python scripts/package.py --target windows --clean-output
+uv run python scripts/package.py --target macos --target-arch universal2 --mode gui --clean-output
 ```
 
 产物目录：
 
-- `dist/windows/sshmanager-gui/`（GUI）
-- `dist/windows/sshmanager-cli/`（CLI）
+- `dist/macos/sshmanager-gui.app`（GUI）
 
-### 4. 可选：打包成单文件
+说明：
+
+- `--target-arch` 仅在 macOS 下可用，可选 `x86_64`、`arm64`、`universal2`
+- release 工作流默认使用 `universal2`
+
+### 5. 可选：打包成单文件
 
 ```bash
 uv run python scripts/package.py --mode all --onefile --clean-output
@@ -91,6 +106,42 @@ uv run python scripts/package.py --mode all --onefile --clean-output
 
 - `main_gui.py`：只启动 GUI，适合桌面用户
 - `main_cli.py`：只启动 CLI，适合终端用户
+
+## GitHub Actions 自动 Release
+
+仓库已提供 GitHub Actions 工作流：`.github/workflows/release.yml`。
+
+### 触发条件
+
+- 仅在推送 `v*` 格式的 tag 时触发，例如 `v0.1.0`
+- tag 版本必须与 `pyproject.toml` 中的 `project.version` 完全一致
+- 只 `git push` 分支不会发布 release；还需要额外推送 tag
+
+### 自动发布产物
+
+工作流会自动运行测试，并发布 3 个 GUI 资产：
+
+- `sshmanager-${version}-windows-x64.zip`
+- `sshmanager-${version}-ubuntu-x64.tar.gz`
+- `sshmanager-${version}-macos-universal2.zip`
+
+### 发布步骤
+
+1. 确认 `pyproject.toml` 中的版本号正确，例如 `0.1.0`
+2. 提交代码并推送分支
+3. 创建同版本 tag 并推送
+
+示例命令：
+
+```bash
+git add .
+git commit -m "release: prepare v0.1.0"
+git push origin main
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+如果当前版本已经发布过，不要重复推同一个 tag；先修改 `pyproject.toml` 版本号，再重新打新 tag，例如 `v0.1.1`。
 
 ## VSCode 调试
 
@@ -255,6 +306,6 @@ uv run python -m compileall src
 如果网络可访问 PyPI，可安装并运行测试：
 
 ```bash
-uv add --dev pytest
+uv sync --group dev
 uv run pytest
 ```
